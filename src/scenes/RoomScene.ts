@@ -3,7 +3,7 @@ import { BaseScene } from '../core/BaseScene';
 import { GameConfig } from '../config/GameConfig';
 import { PatronManager } from '../utils/PatronManager';
 import { Patron } from '../types/GameTypes';
-import { HallwayScene } from './HallwayScene';
+// Avoid circular import - import HallwayScene dynamically when needed
 
 export class RoomScene extends BaseScene {
   protected patronManager!: PatronManager;
@@ -32,6 +32,8 @@ export class RoomScene extends BaseScene {
   private isNearNPC = false;
   private isNearItem = false;
   private isNearPoster = false;
+  private isNearDoor = false;
+  private exitPopup?: Container;
   
   private interactionPrompt!: Text;
 
@@ -317,6 +319,15 @@ export class RoomScene extends BaseScene {
   private checkInteractions(): void {
     const interactionDistance = this.layout.interactionDistance;
     
+    // Check door collision (left side of room)
+    const doorArea = { x: 0, y: this.groundLevel - 60, width: 25, height: 60 };
+    const playerInDoorArea = this.playerPosition.x >= doorArea.x && 
+                            this.playerPosition.x <= doorArea.x + doorArea.width &&
+                            this.playerPosition.y + this.layout.playerHeight >= doorArea.y &&
+                            this.playerPosition.y <= doorArea.y + doorArea.height;
+    
+    this.isNearDoor = playerInDoorArea;
+    
     // Check NPC interaction
     const npcDistance = Math.abs(this.playerPosition.x - this.npcPosition.x);
     this.isNearNPC = npcDistance < interactionDistance;
@@ -329,8 +340,11 @@ export class RoomScene extends BaseScene {
     const posterDistance = Math.abs(this.playerPosition.x - this.posterSprite.x);
     this.isNearPoster = posterDistance < interactionDistance;
     
-    // Update interaction prompt
-    if (this.isNearNPC || this.isNearItem || this.isNearPoster) {
+    // Update interaction prompt (door takes priority)
+    if (this.isNearDoor && !this.exitPopup) {
+      this.interactionPrompt.visible = true;
+      this.interactionPrompt.text = 'Press SPACE to leave room';
+    } else if (this.isNearNPC || this.isNearItem || this.isNearPoster) {
       this.interactionPrompt.visible = true;
       
       if (this.isNearNPC) {
@@ -347,6 +361,17 @@ export class RoomScene extends BaseScene {
 
   handleKeyDown(keyCode: string): void {
     super.handleKeyDown(keyCode);
+    
+    // Handle exit popup
+    if (this.exitPopup) {
+      if (keyCode === 'Enter' || keyCode === 'Space') {
+        this.confirmExit();
+        return;
+      } else if (keyCode === 'Escape') {
+        this.cancelExit();
+        return;
+      }
+    }
     
     switch (keyCode) {
       case 'Space':
@@ -368,7 +393,9 @@ export class RoomScene extends BaseScene {
       return;
     }
     
-    if (this.isNearNPC) {
+    if (this.isNearDoor) {
+      this.showExitPopup();
+    } else if (this.isNearNPC) {
       this.showDialog(this.patron.dialogText);
     } else if (this.isNearItem) {
       this.showDialog(`This is ${this.patron.name}'s special item. It holds great meaning to them!`);
@@ -437,6 +464,76 @@ export class RoomScene extends BaseScene {
     }
     this.isShowingDialog = false;
   }
+  
+  private showExitPopup(): void {
+    const popupContainer = new Container();
+    
+    // Semi-transparent background
+    const overlay = new Graphics()
+      .rect(0, 0, this.layout.screenWidth, this.layout.screenHeight)
+      .fill(0x000000, 0.7);
+    
+    // Popup background
+    const popupWidth = 400 * this.layout.scale;
+    const popupHeight = 150 * this.layout.scale;
+    const popup = new Graphics()
+      .rect(0, 0, popupWidth, popupHeight)
+      .fill(0x2c3e50)
+      .stroke({ width: 3, color: GameConfig.UI_COLORS.ACCENT });
+    
+    popup.x = this.layout.centerX() - popupWidth / 2;
+    popup.y = this.layout.centerY() - popupHeight / 2;
+    
+    // Title
+    const title = new Text({
+      text: 'Leave Room?',
+      style: {
+        fontFamily: GameConfig.DEFAULT_FONT_FAMILY,
+        fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.SUBTITLE),
+        fill: GameConfig.UI_COLORS.TEXT,
+        align: 'center',
+        fontWeight: 'bold'
+      }
+    });
+    title.anchor.set(0.5);
+    title.x = popupWidth / 2;
+    title.y = 40 * this.layout.scale;
+    
+    // Instructions
+    const instructions = new Text({
+      text: 'Press ENTER to return to hallway, ESC to stay',
+      style: {
+        fontFamily: GameConfig.DEFAULT_FONT_FAMILY,
+        fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.SMALL),
+        fill: GameConfig.UI_COLORS.SECONDARY,
+        align: 'center'
+      }
+    });
+    instructions.anchor.set(0.5);
+    instructions.x = popupWidth / 2;
+    instructions.y = 90 * this.layout.scale;
+    
+    popup.addChild(title, instructions);
+    popupContainer.addChild(overlay, popup);
+    this.container.addChild(popupContainer);
+    
+    this.exitPopup = popupContainer;
+  }
+  
+  private confirmExit(): void {
+    if (this.exitPopup) {
+      this.container.removeChild(this.exitPopup);
+      this.exitPopup = undefined;
+    }
+    this.exitRoom();
+  }
+  
+  private cancelExit(): void {
+    if (this.exitPopup) {
+      this.container.removeChild(this.exitPopup);
+      this.exitPopup = undefined;
+    }
+  }
 
   private wrapText(text: string, maxLength: number): string {
     // Simple text wrapping
@@ -462,7 +559,23 @@ export class RoomScene extends BaseScene {
     
     const sceneManager = (this.app as any).sceneManager;
     if (sceneManager) {
-      await sceneManager.switchTo(HallwayScene);
+      // Import HallwayScene dynamically to avoid circular dependency
+      const { HallwayScene } = await import('./HallwayScene');
+      
+      // Capture the current room's floor and roomNumber
+      const currentFloor = this.floor;
+      const currentRoomNumber = this.roomNumber;
+      
+      // Create HallwayScene with player positioned at the room door
+      const HallwaySceneWithPlayerPosition = class extends HallwayScene {
+        constructor(app: Application) {
+          super(app);
+          (this as any).currentFloor = currentFloor;
+          (this as any).returnFromRoom = currentRoomNumber;
+        }
+      };
+      
+      await sceneManager.switchTo(HallwaySceneWithPlayerPosition);
     }
   }
 

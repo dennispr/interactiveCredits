@@ -8,7 +8,14 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean && npm run lint && npm run type-check",
+    "build:dev": "tsc && vite build --mode development",
+    "build:prod": "npm run prebuild && tsc && vite build --mode production",
+    "serve": "npm run build && npm run preview",
+    "deploy:prepare": "npm run build:prod",
+    "start": "npm run dev"
   },
   "dependencies": {
     "pixi.js": "^8.0.0"

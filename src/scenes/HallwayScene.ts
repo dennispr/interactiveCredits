@@ -2,7 +2,7 @@ import { Application, Graphics, Text, Container } from 'pixi.js';
 import { BaseScene } from '../core/BaseScene';
 import { GameConfig } from '../config/GameConfig';
 import { PatronManager } from '../utils/PatronManager';
-import { RoomScene } from './RoomScene';
+// RoomScene imported dynamically to avoid circular dependency
 
 export class HallwayScene extends BaseScene {
   private patronManager: PatronManager;
@@ -10,6 +10,8 @@ export class HallwayScene extends BaseScene {
   private playerSprite!: Graphics;
   private playerPosition = { x: 100, y: 0 };
   private playerSpeed: number = GameConfig.PLAYER_SPEED;
+  private returnFromRoom?: number; // Room number player is returning from
+  private selectedFloorInPopup: number = 1; // Currently selected floor in popup
   
   private doors: Container[] = [];
   private hallwayContainer!: Container;
@@ -253,8 +255,15 @@ export class HallwayScene extends BaseScene {
   }
 
   private positionPlayer(): void {
-    // Start player at the left side of the hallway
-    this.playerPosition.x = this.layout.playerStartX;
+    // Check if returning from a specific room
+    if (this.returnFromRoom) {
+      // Position player at the door of the room they came from
+      const doorSpacing = this.layout.screenWidth / (GameConfig.ROOMS_PER_FLOOR + 1);
+      this.playerPosition.x = doorSpacing * this.returnFromRoom - (this.layout.playerWidth / 2);
+    } else {
+      // Start player at the left side of the hallway
+      this.playerPosition.x = this.layout.playerStartX;
+    }
     
     // Position player so their lower left corner is slightly below door's lower left corner
     const doorHeight = this.layout.doorHeight;
@@ -337,6 +346,25 @@ export class HallwayScene extends BaseScene {
         return;
       }
       
+      // Handle arrow key floor selection
+      if (keyCode === 'ArrowUp') {
+        this.selectedFloorInPopup = Math.max(1, this.selectedFloorInPopup - 1);
+        this.updateFloorSelectionHighlight();
+        return;
+      }
+      
+      if (keyCode === 'ArrowDown') {
+        this.selectedFloorInPopup = Math.min(this.patronManager.getFloorCount(), this.selectedFloorInPopup + 1);
+        this.updateFloorSelectionHighlight();
+        return;
+      }
+      
+      // Handle Enter to select highlighted floor
+      if (keyCode === 'Enter') {
+        this.selectFloor(this.selectedFloorInPopup);
+        return;
+      }
+      
       // Handle number key floor selection
       const floorNum = parseInt(keyCode.replace('Digit', ''));
       if (floorNum >= 1 && floorNum <= this.patronManager.getFloorCount()) {
@@ -372,6 +400,9 @@ export class HallwayScene extends BaseScene {
   private async enterRoom(roomNumber: number): Promise<void> {
     const sceneManager = (this.app as any).sceneManager;
     if (sceneManager) {
+      // Import RoomScene dynamically to avoid circular dependency
+      const { RoomScene } = await import('./RoomScene');
+      
       // Pass room information to the room scene
       const currentFloorRef = this.currentFloor;
       const patronManagerRef = this.patronManager;
@@ -446,6 +477,7 @@ export class HallwayScene extends BaseScene {
 
   private showFloorSelectionPopup(): void {
     const maxFloors = this.patronManager.getFloorCount();
+    this.selectedFloorInPopup = this.currentFloor; // Start with current floor selected
     const popupContainer = new Container();
     
     // Semi-transparent background
@@ -479,7 +511,8 @@ export class HallwayScene extends BaseScene {
     title.x = popupWidth / 2;
     title.y = 30 * this.layout.scale;
     
-    // Floor buttons
+    // Floor buttons container
+    const buttonsContainer = new Container();
     const buttonHeight = 35 * this.layout.scale;
     const buttonSpacing = 10 * this.layout.scale;
     const startY = 70 * this.layout.scale;
@@ -507,19 +540,20 @@ export class HallwayScene extends BaseScene {
       buttonText.y = button.height / 2;
       
       button.addChild(buttonText);
-      popup.addChild(button);
+      buttonsContainer.addChild(button);
       
-      // Store floor number for interaction
+      // Store floor number and button for highlighting
       (button as any).floorNumber = floor;
       (button as any).isCurrentFloor = isCurrentFloor;
+      (button as any).buttonText = buttonText;
     }
     
     // Instructions
     const instructions = new Text({
-      text: 'Press 1-' + maxFloors + ' or click to select, ESC to cancel',
+      text: 'Use ↑↓ arrows, 1-' + maxFloors + ', ENTER to select, ESC to cancel',
       style: {
         fontFamily: GameConfig.DEFAULT_FONT_FAMILY,
-        fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.SMALL),
+        fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.SMALL * 0.8),
         fill: GameConfig.UI_COLORS.SECONDARY,
         align: 'center'
       }
@@ -528,12 +562,42 @@ export class HallwayScene extends BaseScene {
     instructions.x = popupWidth / 2;
     instructions.y = popupHeight - 20 * this.layout.scale;
     
-    popup.addChild(title, instructions);
+    popup.addChild(title, buttonsContainer, instructions);
     popupContainer.addChild(overlay, popup);
     this.container.addChild(popupContainer);
     
-    // Store reference for cleanup
+    // Store references for highlighting
     (this as any).floorSelectionPopup = popupContainer;
+    (this as any).floorButtons = buttonsContainer;
+    
+    // Initial highlight
+    this.updateFloorSelectionHighlight();
+  }
+  
+  private updateFloorSelectionHighlight(): void {
+    const buttonsContainer = (this as any).floorButtons;
+    if (!buttonsContainer) return;
+    
+    // Update all button styles
+    for (let i = 0; i < buttonsContainer.children.length; i++) {
+      const button = buttonsContainer.children[i] as Graphics;
+      const floor = (button as any).floorNumber;
+      const isCurrentFloor = (button as any).isCurrentFloor;
+      const isSelected = floor === this.selectedFloorInPopup;
+      
+      // Clear and redraw button
+      button.clear();
+      if (isSelected) {
+        button.rect(0, 0, button.width, button.height)
+              .fill(GameConfig.UI_COLORS.ACCENT);
+      } else if (isCurrentFloor) {
+        button.rect(0, 0, button.width, button.height)
+              .fill(GameConfig.UI_COLORS.WARNING);
+      } else {
+        button.rect(0, 0, button.width, button.height)
+              .fill(GameConfig.UI_COLORS.BUTTON);
+      }
+    }
   }
   
   private selectFloor(floor: number): void {
@@ -553,7 +617,6 @@ export class HallwayScene extends BaseScene {
   }
   
   private async goToFloor(floor: number): Promise<void> {
-    const message = `Now going to Floor ${floor}`;
     const sceneManager = (this.app as any).sceneManager;
     
     if (sceneManager) {
@@ -565,24 +628,10 @@ export class HallwayScene extends BaseScene {
         }
       };
       
-      // Import and use transition scene
-      const { TransitionScene } = await import('./TransitionScene');
-      await sceneManager.switchTo(new TransitionScene(this.app, message, HallwaySceneWithFloor));
+      // For now, directly switch to the new floor without transition screen
+      // TODO: Add floor transition screen later
+      await sceneManager.switchTo(HallwaySceneWithFloor);
     }
-  }
-
-  private async refreshFloor(): Promise<void> {
-    // Clear current doors
-    this.doors.forEach(door => this.container.removeChild(door));
-    this.doors = [];
-    
-    // Recreate doors for new floor
-    this.createDoors();
-    this.createElevator(); // Update elevator display
-    
-    // Update UI
-    const floorText = this.uiContainer.children[0] as Text;
-    floorText.text = `Floor ${this.currentFloor} of ${this.patronManager.getFloorCount()}`;
   }
 
   onResize(): void {

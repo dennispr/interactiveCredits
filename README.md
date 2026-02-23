@@ -57,7 +57,53 @@ This project draws inspiration from Whittier, Alaska - a unique community where 
 ### Building for Production
 
 \`\`\`bash
+# Full production build with all checks
+npm run build:prod
+
+# Quick build without pre-checks  
 npm run build
+
+# Development build (with more debugging features)
+npm run build:dev
+\`\`\`
+
+### Deployment
+
+1. **Prepare for deployment**:
+   \`\`\`bash
+   npm run deploy:prepare
+   \`\`\`
+   This runs linting, type-checking, and production build.
+
+2. **Preview the built application**:
+   \`\`\`bash
+   npm run serve
+   \`\`\`
+   Builds and serves the app locally to test before deployment.
+
+3. **Deploy the `dist/` folder** to your hosting service:
+   - **Netlify**: Drag and drop the `dist` folder or connect your Git repo
+   - **Vercel**: Use `vercel --prod` or connect your Git repo  
+   - **GitHub Pages**: Copy `dist` contents to your `gh-pages` branch
+   - **Static hosting**: Upload `dist` folder contents to your web server
+
+### Development Workflow
+
+\`\`\`bash
+# Start development
+npm run dev
+
+# Run type checking
+npm run type-check
+
+# Run linting
+npm run lint
+
+# Clean build artifacts
+npm run clean
+
+# Full pre-deployment check
+npm run prebuild
 \`\`\`
 
 ## Project Structure
@@ -135,11 +181,17 @@ Adjust building layout in `GameConfig.ts`:
 
 ### Available Scripts
 
-- `npm run dev`: Start development server
-- `npm run build`: Build for production  
-- `npm run preview`: Preview production build
-- `npm run lint`: Run ESLint
+- `npm run dev` / `npm start`: Start development server
+- `npm run build`: Quick production build
+- `npm run build:dev`: Development build with debugging features
+- `npm run build:prod`: Full production build with all pre-checks
+- `npm run preview`: Preview production build locally
+- `npm run serve`: Build and serve for testing
+- `npm run lint`: Run ESLint code quality checks  
 - `npm run type-check`: Run TypeScript type checking
+- `npm run clean`: Remove build artifacts
+- `npm run prebuild`: Run all pre-build checks (lint + type-check)
+- `npm run deploy:prepare`: Full deployment preparation
 
 ### Code Style
 - TypeScript with strict mode enabled

@@ -184,7 +184,7 @@ export class StartScene extends BaseScene {
   private async switchToTransition(): Promise<void> {
     const sceneManager = (this.app as any).sceneManager;
     if (sceneManager) {
-      await sceneManager.switchTo(new TransitionScene(this.app));
+      await sceneManager.switchTo(TransitionScene);
     }
   }
 

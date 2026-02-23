@@ -11,21 +11,21 @@
     {
       "id": "patron_002", 
       "name": "Charlie Mackin",
-      "dialogText": "Your support means the world to me!",
+      "dialogText": "Thanks for supporting our work!",
       "tier": "silver",
       "joinDate": "2024-02-03"
     },
     {
       "id": "patron_003",
       "name": "Harry", 
-      "dialogText": "Music fills every corner of this space. I compose soundtracks for indie games. Thank you for believing in creative work!",
+      "dialogText": "Movies!",
       "tier": "bronze",
       "joinDate": "2024-02-10"
     },
     {
       "id": "patron_004",
       "name": "Kevin",
-      "dialogText": "Research never stops! I'm studying the intersection of AI and creativity. Your patronage helps fund important research!",
+      "dialogText": "I'm Kevin!",
       "tier": "diamond",
       "floor": 1,
       "roomNumber": 1,

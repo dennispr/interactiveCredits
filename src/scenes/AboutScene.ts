@@ -1,7 +1,6 @@
 import { Application, Graphics, Text, Container } from 'pixi.js';
 import { BaseScene } from '../core/BaseScene';
 import { GameConfig } from '../config/GameConfig';
-import { StartScene } from './StartScene';
 
 export class AboutScene extends BaseScene {
   private backButton!: Container;
@@ -78,7 +77,7 @@ export class AboutScene extends BaseScene {
     
     // Credits
     const creditsText = new Text({
-      text: 'Built with ❤️ using Pixi.js and TypeScript',
+      text: 'Thank you to our supporters!',
       style: {
         fontFamily: GameConfig.DEFAULT_FONT_FAMILY,
         fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.SMALL),
@@ -183,6 +182,7 @@ export class AboutScene extends BaseScene {
   private async goBack(): Promise<void> {
     const sceneManager = (this.app as any).sceneManager;
     if (sceneManager) {
+      const { StartScene } = await import('./StartScene');
       await sceneManager.switchTo(StartScene);
     }
   }

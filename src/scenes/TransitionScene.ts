@@ -9,15 +9,9 @@ export class TransitionScene extends BaseScene {
   private phase: 'fadeIn' | 'display' | 'fadeOut' = 'fadeIn';
   private phaseTimer = 0;
   private readonly DISPLAY_DURATION = 2000; // 2 seconds
-  private message: string;
-  private destinationScene: any;
-  private destinationData?: any;
 
-  constructor(app: Application, message: string = 'Now entering the workshop!', destinationScene: any = HallwayScene, destinationData?: any) {
+  constructor(app: Application) {
     super(app);
-    this.message = message;
-    this.destinationScene = destinationScene;
-    this.destinationData = destinationData;
   }
 
   async enter(): Promise<void> {
@@ -31,7 +25,7 @@ export class TransitionScene extends BaseScene {
 
   private createTransitionText(): void {
     this.transitionText = new Text({
-      text: this.message,
+      text: 'Now entering the workshop!',
       style: {
         fontFamily: GameConfig.DEFAULT_FONT_FAMILY,
         fontSize: this.layout.getFontSize(GameConfig.FONT_SIZES.TITLE),
@@ -101,26 +95,15 @@ export class TransitionScene extends BaseScene {
     this.transitionText.alpha = Math.max(1 - progress, 0);
     
     if (progress >= 1) {
-      // Transition complete, go to destination
-      this.transitionToDestination();
+      // Transition complete, go to hallway
+      this.transitionToHallway();
     }
   }
 
-  private async transitionToDestination(): Promise<void> {
+  private async transitionToHallway(): Promise<void> {
     const sceneManager = (this.app as any).sceneManager;
     if (sceneManager) {
-      if (this.destinationData) {
-        // Create scene with data
-        const SceneWithData = class extends this.destinationScene {
-          constructor(app: Application) {
-            super(app);
-            Object.assign(this, this.destinationData);
-          }
-        };
-        await sceneManager.switchTo(SceneWithData);
-      } else {
-        await sceneManager.switchTo(this.destinationScene);
-      }
+      await sceneManager.switchTo(HallwayScene);
     }
   }
 
@@ -140,7 +123,7 @@ export class TransitionScene extends BaseScene {
       case 'Space':
       case 'Enter':
       case 'Escape':
-        this.transitionToDestination();
+        this.transitionToHallway();
         break;
     }
   }
